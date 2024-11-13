@@ -1,25 +1,33 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.resolve(__dirname, 'database.db');
+let db;
 
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error opening database ' + err.message);
-    } else {
-        console.log('Database connected');
+if (process.env.NODE_ENV === 'production') {
+    // Use in-memory database for Vercel
+    db = new sqlite3.Database(':memory:', (err) => {
+        if (err) {
+            console.error('Error opening database:', err);
+            return;
+        }
+        initializeDatabase();
+    });
+} else {
+    // Use file database for development
+    const dbPath = path.resolve(__dirname, 'database.db');
+    db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+            console.error('Error opening database:', err);
+            return;
+        }
+        initializeDatabase();
+    });
+}
 
-        // Utility function to create tables
-        const createTable = (sql) => {
-            db.run(sql, (err) => {
-                if (err) {
-                    console.error('Error creating table ' + err.message);
-                }
-            });
-        };
-
+function initializeDatabase() {
+    db.serialize(() => {
         // Create users table
-        createTable(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS users (
                 email TEXT PRIMARY KEY UNIQUE,
                 username TEXT UNIQUE,
@@ -29,7 +37,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
         `);
 
         // Create user progress table
-        createTable(`
+        db.run(`
             CREATE TABLE IF NOT EXISTS user_progress (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_email TEXT,
@@ -40,20 +48,17 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 FOREIGN KEY(user_email) REFERENCES users(email)
             )
         `);
-    }
-});
+    });
+}
 
-// Handle graceful database closure
+// Handle graceful shutdown
 process.on('SIGINT', () => {
     db.close((err) => {
         if (err) {
-            console.error('Error closing database:', err.message);
-        } else {
-            console.log('Database connection closed.');
+            console.error('Error closing database:', err);
         }
         process.exit(0);
     });
 });
 
-// Export the database object
 module.exports = db;
