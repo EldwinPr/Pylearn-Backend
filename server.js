@@ -1,26 +1,36 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
+require('dotenv').config();
 
-// Load environment variables
-dotenv.config();
+// Import route handlers
+const { 
+  registerUser, 
+  loginUser, 
+  getUserData, 
+  updateUserData, 
+  getAllUsers, 
+  checkAdminRole, 
+  deleteUser 
+} = require('./userController');
+
+const { 
+  updateProgress, 
+  getProgress, 
+  resetProgress, 
+  getCompletionStatus 
+} = require('./progressController');
 
 const app = express();
 
 // CORS configuration
 app.use(cors({
-    origin: 'https://pawm-taupe.vercel.app',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  }));
+  origin: process.env.ALLOWED_ORIGINS || 'https://pawm-taupe.vercel.app',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use(express.json());
-
-// Handle preflight requests
-app.options('*', (req, res) => {
-    res.sendStatus(200);
-});
 
 // Define routes
 app.post('/register', registerUser);
@@ -36,6 +46,12 @@ app.post('/progress/update', updateProgress);
 app.get('/progress', getProgress);
 app.post('/progress/reset', resetProgress);
 app.get('/progress/completion', getCompletionStatus);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
