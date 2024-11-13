@@ -10,7 +10,7 @@
     "express-rate-limit": "^6.7.0",
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.0.2"
+    "pg": "^8.13.1"
   },
   "scripts": {
     "start": "node server.js"

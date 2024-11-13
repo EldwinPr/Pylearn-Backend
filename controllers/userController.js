@@ -1,152 +1,66 @@
-// Import dependencies
 const db = require('../models/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Register User
-const registerUser = (req, res) => {
+const registerUser = async (req, res) => {
     const { email, username, password } = req.body;
 
     if (!email || !username || !password) {
         return res.status(400).json({ message: 'Email, username, and password are required' });
     }
 
-    // Hash the password before saving
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) {
-            return res.status(500).json({ message: 'Error hashing password: ' + err.message });
-        }
+    try {
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Insert the user
+        const result = await db.query(
+            'INSERT INTO users (email, username, password, admin) VALUES ($1, $2, $3, $4) RETURNING email',
+            [email, username, hashedPassword, false]
+        );
 
-        const sql = `INSERT INTO users (email, username, password, admin) VALUES (?, ?, ?, 1)`;
-        db.run(sql, [email, username, hashedPassword], function (err) {
-            if (err) {
-                return res.status(400).json({ message: 'Error creating user: ' + err.message });
-            }
-            res.status(201).json({ message: 'User registered successfully', userEmail: email });
-        });
-    });
+        res.status(201).json({ message: 'User registered successfully', userEmail: result.rows[0].email });
+    } catch (err) {
+        if (err.code === '23505') { // Unique violation in PostgreSQL
+            return res.status(400).json({ message: 'Email or username already exists' });
+        }
+        res.status(500).json({ message: 'Error creating user: ' + err.message });
+    }
 };
 
 // Login User
-const loginUser = (req, res) => {
+const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find the user by email
-    const sql = `SELECT * FROM users WHERE email = ?`;
-    db.get(sql, [email], (err, user) => {
-        if (err) {
-            return res.status(500).json({ message: 'Error fetching user: ' + err.message });
-        }
+    try {
+        const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        const user = result.rows[0];
 
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Compare password
-        bcrypt.compare(password, user.password, (err, isMatch) => {
-            if (err) {
-                return res.status(500).json({ message: 'Error comparing passwords: ' + err.message });
-            }
-
-            if (!isMatch) {
-                return res.status(400).json({ message: 'Invalid credentials' });
-            }
-
-            // Generate JWT token
-            const token = jwt.sign({ email: user.email }, 'your_jwt_secret', { expiresIn: '1h' });
-            res.status(200).json({ message: 'Login successful', token });
-        });
-    });
-};
-
-// Update user data
-const updateUserData = (req, res) => {
-    const { username, currentPassword, newPassword } = req.body;
-    const userEmail = req.query.email;
-
-    if (!username || !currentPassword) {
-        return res.status(400).json({ message: 'Username and current password are required' });
-    }
-
-    // Fetch the current user from the database
-    db.get('SELECT * FROM users WHERE email = ?', [userEmail], (err, user) => {
-        if (err) {
-            return res.status(500).json({ message: 'Error fetching user: ' + err.message });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Compare current password
-        bcrypt.compare(currentPassword, user.password, (err, isMatch) => {
-            if (err) {
-                return res.status(500).json({ message: 'Error comparing passwords: ' + err.message });
-            }
-
-            if (!isMatch) {
-                return res.status(400).json({ message: 'Current password is incorrect' });
-            }
-
-            // If a new password is provided, hash it
-            if (newPassword) {
-                bcrypt.hash(newPassword, 10, (err, hashedNewPassword) => {
-                    if (err) {
-                        return res.status(500).json({ message: 'Error hashing new password: ' + err.message });
-                    }
-
-                    // Update username and password
-                    const sql = `UPDATE users SET username = ?, password = ? WHERE email = ?`;
-                    db.run(sql, [username, hashedNewPassword, userEmail], function (err) {
-                        if (err) {
-                            return res.status(500).json({ message: 'Error updating user: ' + err.message });
-                        }
-
-                        res.status(200).json({ message: 'User updated successfully' });
-                    });
-                });
-            } else {
-                // Update only the username if no new password is provided
-                const sql = `UPDATE users SET username = ? WHERE email = ?`;
-                db.run(sql, [username, userEmail], function (err) {
-                    if (err) {
-                        return res.status(500).json({ message: 'Error updating user: ' + err.message });
-                    }
-
-                    res.status(200).json({ message: 'User updated successfully' });
-                });
-            }
-        });
-    });
-};
-
-// Get user data
-const getUserData = async (req, res) => {
-    const email = req.query.email;
-
-    if (!email) {
-        return res.status(400).json({ message: 'Email is required' });
-    }
-
-    try {
-        const user = await findUserByEmail(email);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        res.status(200).json(user);
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res.status(200).json({ message: 'Login successful', token });
+    } catch (err) {
+        res.status(500).json({ message: 'Error during login: ' + err.message });
     }
 };
 
 // Get all users
 const getAllUsers = async (req, res) => {
     try {
-        const sql = `
+        const result = await db.query(`
             SELECT users.*, 
                    user_progress.Drag, 
                    user_progress.Fill, 
@@ -154,47 +68,24 @@ const getAllUsers = async (req, res) => {
                    user_progress.score
             FROM users 
             LEFT JOIN user_progress ON users.email = user_progress.user_email
-        `;
-        
-        db.all(sql, [], (err, rows) => {
-            if (err) {
-                return res.status(500).json({ message: 'Error fetching users: ' + err.message });
+        `);
+
+        const users = result.rows.map(row => ({
+            username: row.username,
+            email: row.email,
+            role: row.admin ? 'admin' : 'user',
+            progress: {
+                Drag: row.drag || false,
+                Fill: row.fill || false,
+                Mult: row.mult || false,
+                score: row.score || 0
             }
+        }));
 
-            // Format the data
-            const users = rows.map(row => ({
-                username: row.username,
-                email: row.email,
-                role: row.admin ? 'admin' : 'user',
-                progress: {
-                    Drag: row.Drag === 1,
-                    Fill: row.Fill === 1,
-                    Mult: row.Mult === 1,
-                    score: row.score
-                }
-            }));
-
-            res.status(200).json(users);
-        });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(200).json(users);
+    } catch (err) {
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
-};
-
-// Helper function to find user by email
-const findUserByEmail = (email) => {
-    return new Promise((resolve, reject) => {
-        const query = 'SELECT * FROM users WHERE email = ?';
-        db.get(query, [email], (err, row) => {
-            if (err) {
-                reject('Error finding user by email: ' + err.message);
-            } else if (!row) {
-                reject('User not found');
-            } else {
-                resolve(row);
-            }
-        });
-    });
 };
 
 // Delete user
@@ -206,28 +97,15 @@ const deleteUser = async (req, res) => {
     }
 
     try {
-        // First delete from user_progress
-        const deleteProgressSql = 'DELETE FROM user_progress WHERE user_email = ?';
-        await new Promise((resolve, reject) => {
-            db.run(deleteProgressSql, [email], (err) => {
-                if (err) reject(err);
-                resolve();
-            });
-        });
-
-        // Then delete from users
-        const deleteUserSql = 'DELETE FROM users WHERE email = ?';
-        await new Promise((resolve, reject) => {
-            db.run(deleteUserSql, [email], function(err) {
-                if (err) reject(err);
-                if (this.changes === 0) reject(new Error('User not found'));
-                resolve();
-            });
-        });
+        const result = await db.query('DELETE FROM users WHERE email = $1 RETURNING *', [email]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
         res.status(200).json({ message: 'User deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting user: ' + error.message });
+    } catch (err) {
+        res.status(500).json({ message: 'Error deleting user: ' + err.message });
     }
 };
 
@@ -239,31 +117,26 @@ const checkAdminRole = async (req, res) => {
         return res.status(400).json({ message: 'Email is required' });
     }
 
-    const sql = 'SELECT admin FROM users WHERE email = ?';
-    
-    db.get(sql, [userEmail], (err, user) => {
-        if (err) {
-            return res.status(500).json({ message: 'Error checking admin role: ' + err.message });
-        }
-
-        if (!user) {
+    try {
+        const result = await db.query('SELECT admin FROM users WHERE email = $1', [userEmail]);
+        
+        if (result.rowCount === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        if (!user.admin) {
+        if (!result.rows[0].admin) {
             return res.status(403).json({ message: 'Not an admin user' });
         }
 
         res.status(200).json({ message: 'Admin role verified', isAdmin: true });
-    });
+    } catch (err) {
+        res.status(500).json({ message: 'Error checking admin role: ' + err.message });
+    }
 };
 
-// Export all functions
 module.exports = {
     registerUser,
     loginUser,
-    getUserData,
-    updateUserData,
     getAllUsers,
     checkAdminRole,
     deleteUser
