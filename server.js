@@ -11,14 +11,14 @@ const {
   getAllUsers, 
   checkAdminRole, 
   deleteUser 
-} = require('./userController');
+} = require('./controllers/userController');
 
 const { 
   updateProgress, 
   getProgress, 
   resetProgress, 
   getCompletionStatus 
-} = require('./progressController');
+} = require('./controllers/userProgressController');
 
 const app = express();
 
