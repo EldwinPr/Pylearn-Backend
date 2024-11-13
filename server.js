@@ -1,40 +1,35 @@
 const express = require('express');
-// const cors = require('cors');
+const cors = require('cors');
 const dotenv = require('dotenv');
 
 // Load environment variables
 dotenv.config();
 
-const { 
-    registerUser, 
-    loginUser, 
-    getUserData, 
-    updateUserData, 
-    getAllUsers, 
-    checkAdminRole, 
-    deleteUser 
-} = require('./controllers/userController');
-const { 
-    updateProgress, 
-    getProgress, 
-    resetProgress, 
-    getCompletionStatus 
-} = require('./controllers/userProgressController');
-
 const app = express();
 
-// Configure CORS to use the environment variable
-// app.use(cors({
-//     origin: process.env.ALLOWED_ORIGINS.split(','), // Supports multiple origins if needed
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//     allowedHeaders: ['Content-Type', 'Authorization'],
-//     credentials: true
-// }));
+// CORS configuration
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS.split(','),  // Allows multiple origins if needed
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
 
 app.use(express.json());
 
-// Use CORS middleware to handle preflight requests automatically
-app.options('*', cors());
+// Set headers for all responses
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://pawm-taupe.vercel.app');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
+});
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+    res.sendStatus(200);
+});
 
 // Define routes
 app.post('/register', registerUser);
@@ -56,4 +51,4 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
 
-module.exports = app;
+module.exports = app;  // For Vercel deployment
