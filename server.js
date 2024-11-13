@@ -18,24 +18,20 @@ const {
 
 const app = express();
 
-// Basic CORS setup
+// Basic CORS setup with detailed configuration
 app.use(cors({
     origin: 'https://pawm-taupe.vercel.app',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 
 app.use(express.json());
 
-// Handle preflight requests
-app.options('*', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://pawm-taupe.vercel.app');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.status(200).send();
-});
+// No need to manually set headers for preflight; CORS middleware will handle it
+app.options('*', cors());
 
-// All routes without middleware
+// Define routes
 app.post('/register', registerUser);
 app.post('/login', loginUser);
 app.get('/getUserData', getUserData);
@@ -55,4 +51,4 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
 
-module.exports = app;  // Add this for Vercel
+module.exports = app;  // Required for Vercel
