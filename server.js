@@ -9,22 +9,13 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS.split(','),  // Allows multiple origins if needed
+    origin: 'https://pawm-taupe.vercel.app',
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 
 app.use(express.json());
-
-// Set headers for all responses
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://pawm-taupe.vercel.app');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    next();
-});
 
 // Handle preflight requests
 app.options('*', (req, res) => {
@@ -48,7 +39,7 @@ app.get('/progress/completion', getCompletionStatus);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
-module.exports = app;  // For Vercel deployment
+module.exports = app;
