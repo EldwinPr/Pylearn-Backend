@@ -1,5 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
+
+// Load environment variables
+dotenv.config();
+
 const { 
     registerUser, 
     loginUser, 
@@ -18,9 +23,9 @@ const {
 
 const app = express();
 
-// Basic CORS setup with detailed configuration
+// Configure CORS to use the environment variable
 app.use(cors({
-    origin: 'https://pawm-taupe.vercel.app',
+    origin: process.env.ALLOWED_ORIGINS.split(','), // Supports multiple origins if needed
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
@@ -28,7 +33,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// No need to manually set headers for preflight; CORS middleware will handle it
+// Use CORS middleware to handle preflight requests automatically
 app.options('*', cors());
 
 // Define routes
