@@ -19,7 +19,10 @@ const {
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: ['https://pawm-taupe.vercel.app', 'http://localhost:3000'],
+    credentials: true
+}));
 
 // Add error handler
 app.use((err, req, res, next) => {
