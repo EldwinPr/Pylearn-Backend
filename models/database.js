@@ -1,59 +1,88 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
+const path = require('path');
 
-const pool = new Pool({
-    connectionString: process.env.POSTGRES_URL,
-    ssl: {
-        rejectUnauthorized: false // Required for some hosting providers
-    }
-});
+let db;
 
-// Test the connection
-pool.query('SELECT NOW()', (err, res) => {
-    if (err) {
-        console.error('Error connecting to the database:', err);
-    } else {
-        console.log('Database connected successfully');
-    }
-});
-
-// Initialize database tables
-async function initializeDatabase() {
-    const client = await pool.connect();
-    try {
-        // Create users table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                email TEXT PRIMARY KEY,
-                username TEXT UNIQUE,
-                password TEXT,
-                admin BOOLEAN DEFAULT FALSE
-            );
-        `);
-
-        // Create user progress table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS user_progress (
-                id SERIAL PRIMARY KEY,
-                user_email TEXT REFERENCES users(email) ON DELETE CASCADE,
-                score INTEGER DEFAULT 0,
-                Drag BOOLEAN DEFAULT FALSE,
-                Fill BOOLEAN DEFAULT FALSE,
-                Mult BOOLEAN DEFAULT FALSE
-            );
-        `);
-
-        console.log('Database initialized successfully');
-    } catch (err) {
-        console.error('Error initializing database:', err);
-    } finally {
-        client.release();
-    }
+if (process.env.NODE_ENV === 'production') {
+    db = new sqlite3.Database(':memory:', (err) => {
+        if (err) {
+            console.error('Error opening database:', err);
+            return;
+        }
+        initializeDatabase();
+    });
+} else {
+    const dbPath = path.resolve(__dirname, 'database.db');
+    db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+            console.error('Error opening database:', err);
+            return;
+        }
+        initializeDatabase();
+    });
 }
 
-// Initialize tables
-initializeDatabase();
+function initializeDatabase() {
+    db.serialize(() => {
+        // Create tables
+        db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                email TEXT PRIMARY KEY UNIQUE,
+                username TEXT UNIQUE,
+                password TEXT,
+                admin BOOLEAN DEFAULT 0
+            )
+        `);
 
-module.exports = {
-    query: (text, params) => pool.query(text, params)
-};
+        db.run(`
+            CREATE TABLE IF NOT EXISTS user_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT,
+                score INTEGER DEFAULT 0,
+                Drag BOOL DEFAULT 0,
+                Fill BOOL DEFAULT 0,
+                Mult BOOL DEFAULT 0,
+                FOREIGN KEY(user_email) REFERENCES users(email)
+            )
+        `);
+
+        // In production, create a test account
+        if (process.env.NODE_ENV === 'production') {
+            // Create a test admin account
+            const testUser = {
+                email: 'test@admin.com',
+                username: 'testadmin',
+                password: 'test123',
+                admin: true
+            };
+
+            bcrypt.hash(testUser.password, 10, (err, hashedPassword) => {
+                if (err) {
+                    console.error('Error hashing password:', err);
+                    return;
+                }
+
+                db.run(`
+                    INSERT OR REPLACE INTO users (email, username, password, admin)
+                    VALUES (?, ?, ?, ?)
+                `, [testUser.email, testUser.username, hashedPassword, testUser.admin], 
+                function(err) {
+                    if (err) {
+                        console.error('Error creating test user:', err);
+                    } else {
+                        console.log('Test user created successfully');
+                        // Create initial progress for test user
+                        db.run(`
+                            INSERT OR REPLACE INTO user_progress 
+                            (user_email, score, Drag, Fill, Mult)
+                            VALUES (?, 0, 0, 0, 0)
+                        `, [testUser.email]);
+                    }
+                });
+            });
+        }
+    });
+}
+
+module.exports = db;
