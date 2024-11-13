@@ -18,27 +18,17 @@ const {
 
 const app = express();
 
-app.use(express.json());
+// Updated CORS configuration
 app.use(cors({
     origin: ['https://pawm-taupe.vercel.app', 'http://localhost:3000'],
-    credentials: true
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Add error handler
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ 
-        message: 'Something went wrong!',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
-    });
-});
+app.use(express.json());
 
-// Add health check
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
-});
-
-// All routes without middleware
+// Rest of your routes...
 app.post('/register', registerUser);
 app.post('/login', loginUser);
 app.get('/getUserData', getUserData);
@@ -53,13 +43,7 @@ app.get('/progress', getProgress);
 app.post('/progress/reset', resetProgress);
 app.get('/progress/completion', getCompletionStatus);
 
-// Only start server if not in Vercel
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-    });
-}
-
-// Export the app
-module.exports = app;
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
