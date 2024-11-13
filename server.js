@@ -18,18 +18,24 @@ const {
 
 const app = express();
 
-// Updated CORS configuration
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://pawm-taupe.vercel.app');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    next();
-});
+// Basic CORS setup
+app.use(cors({
+    origin: 'https://pawm-taupe.vercel.app',
+    credentials: true
+}));
 
 app.use(express.json());
 
-// Rest of your routes...
+// Handle preflight requests
+app.options('*', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', 'https://pawm-taupe.vercel.app');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.status(200).send();
+});
+
+// All routes without middleware
 app.post('/register', registerUser);
 app.post('/login', loginUser);
 app.get('/getUserData', getUserData);
@@ -48,3 +54,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = app;  // Add this for Vercel
