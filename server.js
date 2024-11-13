@@ -8,6 +8,7 @@ const userController = require('./controllers/userController');
 const userProgressController = require('./controllers/userProgressController');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
