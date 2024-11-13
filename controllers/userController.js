@@ -1,6 +1,6 @@
 // Import dependencies
 const db = require('../models/database');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Register User

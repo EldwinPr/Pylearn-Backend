@@ -1,26 +1,23 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 require('dotenv').config();
 
-// Import route handlers
-const { 
-  registerUser, 
-  loginUser, 
-  getUserData, 
-  updateUserData, 
-  getAllUsers, 
-  checkAdminRole, 
-  deleteUser 
-} = require('./controllers/userController');
-
-const { 
-  updateProgress, 
-  getProgress, 
-  resetProgress, 
-  getCompletionStatus 
-} = require('./controllers/userProgressController');
+const userController = require('./controllers/userController');
+const userProgressController = require('./controllers/userProgressController');
 
 const app = express();
+
+// Security middleware
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
 
 // CORS configuration
 app.use(cors({
@@ -32,25 +29,30 @@ app.use(cors({
 
 app.use(express.json());
 
-// Define routes
-app.post('/register', registerUser);
-app.post('/login', loginUser);
-app.get('/getUserData', getUserData);
-app.post('/updateAccount', updateUserData);
-app.get('/getAllUsers', getAllUsers);
-app.get('/checkAdminRole', checkAdminRole);
-app.delete('/deleteUser', deleteUser);
+// User routes
+app.post('/register', userController.registerUser);
+app.post('/login', userController.loginUser);
+app.get('/getUserData', userController.getUserData);
+app.post('/updateAccount', userController.updateUserData);
+app.get('/getAllUsers', userController.getAllUsers);
+app.get('/checkAdminRole', userController.checkAdminRole);
+app.delete('/deleteUser', userController.deleteUser);
 
 // Progress routes
-app.post('/progress/update', updateProgress);
-app.get('/progress', getProgress);
-app.post('/progress/reset', resetProgress);
-app.get('/progress/completion', getCompletionStatus);
+app.post('/progress/update', userProgressController.updateProgress);
+app.get('/progress', userProgressController.getProgress);
+app.post('/progress/reset', userProgressController.resetProgress);
+app.get('/progress/completion', userProgressController.getCompletionStatus);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).send('Something broke!');
+  res.status(500).json({ message: 'An unexpected error occurred', error: err.message });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
 });
 
 const PORT = process.env.PORT || 3000;
