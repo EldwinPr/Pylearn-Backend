@@ -24,12 +24,14 @@ async function createTables() {
                 console.log('Users table created successfully');
             });
 
-            // Then create user_progress table
+            // Then create user_progress table with separate scores
             db.run(`
                 CREATE TABLE IF NOT EXISTS user_progress (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_email TEXT,
-                    score INTEGER DEFAULT 0,
+                    drag_score INTEGER DEFAULT 0,
+                    fill_score INTEGER DEFAULT 0,
+                    mult_score INTEGER DEFAULT 0,
                     Drag BOOLEAN DEFAULT 0,
                     Fill BOOLEAN DEFAULT 0,
                     Mult BOOLEAN DEFAULT 0,
@@ -85,8 +87,8 @@ async function createTestUserProgress(userEmail) {
     return new Promise((resolve, reject) => {
         db.run(`
             INSERT OR REPLACE INTO user_progress 
-            (user_email, score, Drag, Fill, Mult)
-            VALUES (?, 0, 0, 0, 0)
+            (user_email, drag_score, fill_score, mult_score, Drag, Fill, Mult)
+            VALUES (?, 0, 0, 0, 0, 0, 0)
         `, [userEmail], (err) => {
             if (err) {
                 console.error('Error creating test user progress:', err);
@@ -108,6 +110,7 @@ async function initializeDatabase() {
         if (process.env.NODE_ENV === 'production') {
             const userEmail = await createTestUser();
             await createTestUserProgress(userEmail);
+            console.log('Test data initialization completed successfully');
         }
         
         console.log('Database initialization completed successfully');
@@ -117,10 +120,12 @@ async function initializeDatabase() {
     }
 }
 
+// Handle database connection based on environment
 if (process.env.NODE_ENV === 'production') {
     db = new sqlite3.Database(':memory:', async (err) => {
         if (err) {
-            console.error('Error opening database:', err);
+            console.error('Error opening in-memory database:', err);
+            process.exit(1);
             return;
         }
         console.log('Memory database connected');
@@ -135,7 +140,8 @@ if (process.env.NODE_ENV === 'production') {
     const dbPath = path.resolve(__dirname, 'database.db');
     db = new sqlite3.Database(dbPath, async (err) => {
         if (err) {
-            console.error('Error opening database:', err);
+            console.error('Error opening file database:', err);
+            process.exit(1);
             return;
         }
         console.log('File database connected');
@@ -143,18 +149,36 @@ if (process.env.NODE_ENV === 'production') {
             await initializeDatabase();
         } catch (error) {
             console.error('Fatal error during database initialization:', error);
+            process.exit(1);
         }
     });
 }
 
+// Clean up on process termination
 process.on('SIGINT', () => {
     db.close((err) => {
         if (err) {
             console.error('Error closing database:', err);
+            process.exit(1);
         } else {
             console.log('Database connection closed');
+            process.exit(0);
         }
-        process.exit(0);
+    });
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    db.close(() => {
+        process.exit(1);
+    });
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+    db.close(() => {
+        process.exit(1);
     });
 });
 

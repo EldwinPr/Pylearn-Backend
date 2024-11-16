@@ -148,16 +148,19 @@ const getAllUsers = async (req, res) => {
     try {
         const sql = `
             SELECT users.*, 
+                   user_progress.drag_score, 
+                   user_progress.fill_score,
+                   user_progress.mult_score,
                    user_progress.Drag, 
                    user_progress.Fill, 
-                   user_progress.Mult,
-                   user_progress.score
+                   user_progress.Mult
             FROM users 
             LEFT JOIN user_progress ON users.email = user_progress.user_email
         `;
         
         db.all(sql, [], (err, rows) => {
             if (err) {
+                console.error('Error in getAllUsers:', err);
                 return res.status(500).json({ message: 'Error fetching users: ' + err.message });
             }
 
@@ -170,13 +173,16 @@ const getAllUsers = async (req, res) => {
                     Drag: row.Drag === 1,
                     Fill: row.Fill === 1,
                     Mult: row.Mult === 1,
-                    score: row.score
+                    drag_score: row.drag_score || 0,
+                    fill_score: row.fill_score || 0,
+                    mult_score: row.mult_score || 0
                 }
             }));
 
             res.status(200).json(users);
         });
     } catch (error) {
+        console.error('Error in getAllUsers:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

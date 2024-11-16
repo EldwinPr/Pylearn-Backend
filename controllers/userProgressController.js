@@ -17,17 +17,33 @@ const updateProgress = (req, res) => {
         }
 
         if (row) {
-            // Update existing progress
+            // Determine which score to update based on exercise type
+            let scoreField = '';
+            let flagField = '';
+            
+            if (drag) {
+                scoreField = 'drag_score';
+                flagField = 'Drag';
+            } else if (fill) {
+                scoreField = 'fill_score';
+                flagField = 'Fill';
+            } else if (mult) {
+                scoreField = 'mult_score';
+                flagField = 'Mult';
+            }
+
+            // Only update if the new score is higher than the existing score
             const updateSql = `
                 UPDATE user_progress 
-                SET score = COALESCE(?, score),
-                    Drag = COALESCE(?, Drag),
-                    Fill = COALESCE(?, Fill),
-                    Mult = COALESCE(?, Mult)
+                SET ${scoreField} = CASE 
+                    WHEN ? > ${scoreField} THEN ? 
+                    ELSE ${scoreField} 
+                END,
+                ${flagField} = 1
                 WHERE user_email = ?
             `;
 
-            db.run(updateSql, [score, drag, fill, mult, user_email], function(err) {
+            db.run(updateSql, [score, score, user_email], function(err) {
                 if (err) {
                     return res.status(500).json({ message: 'Error updating progress: ' + err.message });
                 }
@@ -36,11 +52,23 @@ const updateProgress = (req, res) => {
         } else {
             // Create new progress entry
             const insertSql = `
-                INSERT INTO user_progress (user_email, score, Drag, Fill, Mult)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO user_progress (
+                    user_email, 
+                    drag_score, fill_score, mult_score,
+                    Drag, Fill, Mult
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             `;
 
-            db.run(insertSql, [user_email, score || 0, drag || false, fill || false, mult || false], function(err) {
+            const dragScore = drag ? score : 0;
+            const fillScore = fill ? score : 0;
+            const multScore = mult ? score : 0;
+
+            db.run(insertSql, [
+                user_email, 
+                dragScore, fillScore, multScore,
+                drag || false, fill || false, mult || false
+            ], function(err) {
                 if (err) {
                     return res.status(500).json({ message: 'Error creating progress: ' + err.message });
                 }
@@ -69,7 +97,9 @@ const getProgress = (req, res) => {
             // If no progress found, return default values
             return res.status(200).json({
                 user_email,
-                score: 0,
+                drag_score: 0,
+                fill_score: 0,
+                mult_score: 0,
                 Drag: false,
                 Fill: false,
                 Mult: false
